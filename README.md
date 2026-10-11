@@ -47,11 +47,11 @@ dotnet build WebPageDownload.slnx --configuration Release
 
 ```text
 src/WebPageDownloader/
-  Program.cs                 Application entry point and seed-file loading
-  PageDownloadService.cs     Concurrent downloads and file storage
-  Helper/UrlParser.cs        HTTP and HTTPS URL validation
-  Model/DownloadResult.cs    Result of an individual download
-  seed.txt                   Editable list of URLs
+  Program.cs                       Application entry point and seed-file loading
+  Services/PageDownloadService.cs  Concurrent downloads and file storage
+  Helper/UrlParser.cs               HTTP and HTTPS URL validation
+  Model/DownloadResult.cs           Result of an individual download
+  seed.txt                         Editable list of URLs
 ```
 
 ## Exit codes

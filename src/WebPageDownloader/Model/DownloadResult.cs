@@ -1,4 +1,4 @@
-namespace WebPageDownloader;
+namespace WebPageDownloader.Model;
 
 public sealed record DownloadResult(
     Uri Url,

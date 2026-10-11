@@ -1,10 +1,11 @@
 using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
+using WebPageDownloader.Model;
 
-namespace WebPageDownloader;
+namespace WebPageDownloader.Services;
 
-public sealed class PageDownloadService
+public sealed class PageDownloadService : IDisposable
 {
     private readonly HttpClient _httpClient;
     private readonly string _outputDirectory;
@@ -63,43 +64,34 @@ public sealed class PageDownloadService
             var filePath = Path.Combine(_outputDirectory, BuildFileName(url));
             temporaryFilePath = $"{filePath}.{Guid.NewGuid():N}.tmp";
 
-            await using (var outputStream = new FileStream(
-                             temporaryFilePath,
-                             FileMode.CreateNew,
-                             FileAccess.Write,
-                             FileShare.None,
-                             bufferSize: 81920,
-                             useAsync: true))
-            {
-                await response.Content.CopyToAsync(outputStream, cancellationToken);
-            }
-
+            var bytesDownloaded = await SaveContentAsync(response.Content, temporaryFilePath, cancellationToken);
             File.Move(temporaryFilePath, filePath, overwrite: true);
             temporaryFilePath = null;
             stopwatch.Stop();
 
             return new DownloadResult(
-                url,
+                Url: url,
                 IsSuccess: true,
-                filePath,
-                new FileInfo(filePath).Length,
-                stopwatch.Elapsed,
+                FilePath: filePath,
+                BytesDownloaded: bytesDownloaded,
+                Duration: stopwatch.Elapsed,
                 ErrorMessage: null);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             throw;
         }
-        catch (Exception exception) when (exception is HttpRequestException or IOException or TaskCanceledException)
+        catch (Exception exception) when (
+            exception is HttpRequestException or IOException or UnauthorizedAccessException or TaskCanceledException)
         {
             stopwatch.Stop();
             return new DownloadResult(
-                url,
+                Url: url,
                 IsSuccess: false,
                 FilePath: null,
                 BytesDownloaded: 0,
-                stopwatch.Elapsed,
-                exception.Message);
+                Duration: stopwatch.Elapsed,
+                ErrorMessage: exception.Message);
         }
         finally
         {
@@ -108,6 +100,16 @@ public sealed class PageDownloadService
                 File.Delete(temporaryFilePath);
             }
         }
+    }
+
+    private static async Task<long> SaveContentAsync(
+        HttpContent content, string filePath, CancellationToken cancellationToken)
+    {
+        await using var outputStream = new FileStream(
+            filePath, FileMode.CreateNew, FileAccess.Write, FileShare.None,
+            bufferSize: 81920, useAsync: true);
+        await content.CopyToAsync(outputStream, cancellationToken);
+        return outputStream.Length;
     }
 
     private static string BuildFileName(Uri url)
@@ -130,4 +132,6 @@ public sealed class PageDownloadService
 
         return $"{url.Host}_{pageName}_{urlHash}.html";
     }
+
+    public void Dispose() => _concurrencyLimiter.Dispose();
 }
